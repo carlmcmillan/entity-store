@@ -1,6 +1,10 @@
 import java.util.UUID
 
 import EntityRepository.{EntityNotFound, EntityNotFoundForRemoteIds}
+import akka.stream.Materializer
+import akka.stream.alpakka.cassandra.scaladsl.CassandraSource
+import akka.stream.scaladsl.Sink
+import com.datastax.driver.core._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -21,6 +25,57 @@ object EntityRepository {
 
   final case class EntityNotFound(id: String) extends Exception(s"Entity with id $id not found.")
   final case class EntityNotFoundForRemoteIds(remoteId1: String, remoteId2: String) extends Exception(s"Entity with remoteId1 $remoteId1 and remoteId2 $remoteId2 not found.")
+}
+
+class CassandraEntityRepository()(implicit ec: ExecutionContext, implicit val mat: Materializer) extends EntityRepository {
+
+  implicit val session = Cluster.builder
+    .addContactPoint("127.0.0.1")
+    .withPort(9042)
+    .build
+    .connect()
+
+  session.execute("CREATE KEYSPACE IF NOT EXISTS test WITH REPLICATION = { 'class' : 'NetworkTopologyStrategy', 'datacenter1' : 1 };")
+  session.execute("CREATE TABLE IF NOT EXISTS test.entity ( id text PRIMARY KEY, remoteid1 text, remoteid2 text, active boolean );")
+
+  val stmtAll = new SimpleStatement("SELECT * FROM test.entity")
+  val prepStmtFindById = session.prepare("SELECT * FROM test.entity WHERE id = ?")
+
+  override def all(): Future[Seq[Entity]] = {
+    val rows = CassandraSource(stmtAll).runWith(Sink.seq)
+    rows.map(_.map(row => mapEntity(row)))
+  }
+
+  override def active(): Future[Seq[Entity]] = {
+    val rows = CassandraSource(stmtAll).runWith(Sink.seq)
+    rows.map(_.map(row => mapEntity(row)).filter(e => e.active))
+  }
+
+  override def inactive(): Future[Seq[Entity]] = {
+    val rows = CassandraSource(stmtAll).runWith(Sink.seq)
+    rows.map(_.map(row => mapEntity(row)).filterNot(e => e.active))
+  }
+
+  override def findById(id: String): Future[Entity] = {
+    val boundStatement = new BoundStatement(prepStmtFindById)
+    val rows = session.execute(boundStatement.bind(id))
+    val row = rows.one()
+    if (row == null) {
+      Future.failed(EntityNotFound(id))
+    } else {
+      Future.successful(mapEntity(row))
+    }
+  }
+
+  override def findByRemoteIds(remoteId1: String, remoteId2: String): Future[Entity] = ???
+
+  override def save(createEntity: CreateEntity): Future[Entity] = ???
+
+  override def update(id: String, updateEntity: UpdateEntity): Future[Entity] = ???
+
+  def mapEntity(row: Row): Entity = {
+    Entity(row.getString("id"), row.getString("remoteid1"), row.getString("remoteid2"), row.getBool("active"))
+  }
 }
 
 class InMemoryEntityRepository(initalEntity: Seq[Entity] = Seq.empty)(implicit ec: ExecutionContext) extends EntityRepository {

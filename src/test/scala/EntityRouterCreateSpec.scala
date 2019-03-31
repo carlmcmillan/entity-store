@@ -1,3 +1,5 @@
+import java.util.UUID
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.{Matchers, WordSpec}
@@ -7,8 +9,8 @@ class EntityRouterCreateSpec extends WordSpec with Matchers with ScalatestRouteT
   import io.circe.generic.auto._
 
   var testCreateEntity = CreateEntity(
-    "Test entity",
-    "Test remoteId2"
+    UUID.randomUUID().toString,
+    UUID.randomUUID().toString
   )
 
   "A EntityRouter" should {

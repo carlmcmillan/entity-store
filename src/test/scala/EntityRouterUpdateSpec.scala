@@ -11,12 +11,12 @@ class EntityRouterUpdateSpec extends WordSpec with Matchers with ScalatestRouteT
   val entityId = UUID.randomUUID().toString
   val testEntity = Entity(
     entityId,
-    "Original remoteId1",
-    "Original remoteId2",
+    UUID.randomUUID().toString,
+    UUID.randomUUID().toString,
     active = false
   )
   val testUpdateEntity = UpdateEntity(
-    Some("Test entity"),
+    Some(UUID.randomUUID().toString),
     None,
     Some(true)
   )

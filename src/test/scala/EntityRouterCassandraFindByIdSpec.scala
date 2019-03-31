@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.{Matchers, WordSpec}
 
-class EntityRouterFindByIdSpec extends WordSpec with Matchers with ScalatestRouteTest with EntityMocks {
+class EntityRouterCassandraFindByIdSpec extends WordSpec with Matchers with ScalatestRouteTest with EntityMocks {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
   import io.circe.generic.auto._
 
@@ -24,11 +24,20 @@ class EntityRouterFindByIdSpec extends WordSpec with Matchers with ScalatestRout
   )
   val entities = Seq(testEntity1, testEntity2)
 
+  def setup(repository: CassandraEntityRepository): Unit = {
+    repository.session.execute("TRUNCATE test.entity")
+    repository.session.execute("INSERT INTO test.entity(id, remoteid1, remoteid2, active) VALUES (?, ?, ?, ?)",
+      testEntity1.id, testEntity1.remoteId1, testEntity1.remoteId2, Boolean.box(testEntity1.active))
+    repository.session.execute("INSERT INTO test.entity(id, remoteid1, remoteid2, active) VALUES (?, ?, ?, ?)",
+      testEntity2.id, testEntity2.remoteId1, testEntity2.remoteId2, Boolean.box(testEntity2.active))
+  }
+
   "A EntityRouter" should {
 
     "find an entity by its id" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get(s"/entities/$entityId1") ~> router.route ~> check {
         status shouldBe StatusCodes.OK
@@ -40,8 +49,9 @@ class EntityRouterFindByIdSpec extends WordSpec with Matchers with ScalatestRout
     }
 
     "find another entity by its id" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get(s"/entities/$entityId2") ~> router.route ~> check {
         status shouldBe StatusCodes.OK
@@ -53,8 +63,9 @@ class EntityRouterFindByIdSpec extends WordSpec with Matchers with ScalatestRout
     }
 
     "return not found with non existent entity" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get("/entities/1") ~> router.route ~> check {
         status shouldBe ApiError.entityNotFound("1").statusCode

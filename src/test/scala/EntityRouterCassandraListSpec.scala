@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.scalatest.{Matchers, WordSpec}
 
-class EntityRouterListSpec extends WordSpec with Matchers with ScalatestRouteTest with EntityMocks {
+class EntityRouterCassandraListSpec extends WordSpec with Matchers with ScalatestRouteTest with EntityMocks {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
   import io.circe.generic.auto._
 
@@ -15,22 +15,33 @@ class EntityRouterListSpec extends WordSpec with Matchers with ScalatestRouteTes
 
   private val entities = Seq(activeEntity, inactiveEntity)
 
+  def setup(repository: CassandraEntityRepository): Unit = {
+    repository.session.execute("TRUNCATE test.entity")
+    repository.session.execute("INSERT INTO test.entity(id, remoteid1, remoteid2, active) VALUES (?, ?, ?, ?)",
+      activeEntity.id, activeEntity.remoteId1, activeEntity.remoteId2, Boolean.box(activeEntity.active))
+    repository.session.execute("INSERT INTO test.entity(id, remoteid1, remoteid2, active) VALUES (?, ?, ?, ?)",
+      inactiveEntity.id, inactiveEntity.remoteId1, inactiveEntity.remoteId2, Boolean.box(inactiveEntity.active))
+  }
+
   "EntityRouter" should {
 
     "return all the entities" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get("/entities") ~> router.route ~> check {
         status shouldBe StatusCodes.OK
         val response = responseAs[Seq[Entity]]
-        response shouldBe entities
+        response.size shouldEqual entities.size
+        response.toSet shouldBe entities.toSet
       }
     }
 
     "return all the active entities" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get("/entities/active") ~> router.route ~> check {
         status shouldBe StatusCodes.OK
@@ -40,8 +51,9 @@ class EntityRouterListSpec extends WordSpec with Matchers with ScalatestRouteTes
     }
 
     "return all the inactive entities" in {
-      val repository = new InMemoryEntityRepository(entities)
+      val repository = new CassandraEntityRepository()
       val router = new EntityRouter(repository)
+      setup(repository)
 
       Get("/entities/inactive") ~> router.route ~> check {
         status shouldBe StatusCodes.OK

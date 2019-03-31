@@ -20,6 +20,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
   "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
+  "com.lightbend.akka" %% "akka-stream-alpakka-cassandra" % "1.0-RC1",
+  "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.93" % Test,
 
   "io.circe" %% "circe-core" % circeVersion,
   "io.circe" %% "circe-generic" % circeVersion,
